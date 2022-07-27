@@ -1,0 +1,57 @@
+---
+title: "akfin-ice-import"
+author: "Matt Callahan"
+date: "7/26/2022"
+output: html_document
+---
+Code for downloading ice data and making sure that the crw lookup table works.
+
+```{r, eval=FALSE}
+options(timeout=6000)
+ download.file(url = "https://pae-paha.pacioos.hawaii.edu/erddap/griddap/dhw_5km.nc?CRW_SEAICE%5B(2022-01-01T12:00:00Z):(2022-06-30T12:00:00Z)%5D%5B(69.575):(46.975)%5D%5B(-179.975):(-129.975)%5D&.draw=surface&.vars=longitude%7Clatitude%7CCRW_SEAICE&.colorBar=%7C%7C%7C%7C%7C&.bgColor=0xffccccff", method = "libcurl", mode="wb",destfile = "data/ice2022_e.nc")
+```
+
+```{r}
+library(tidync)
+library(tidyverse)
+library(lubridate)
+library(sf)
+library(httr)
+library(flextable)
+library(marmap)
+
+#function to convert nc to data frame
+tidy_ice<-function(file) {
+  tidync(file) %>% 
+  hyper_tibble()%>% 
+  mutate(date=as_datetime(time),
+         lat1=round(latitude,3),
+         lon1=round(longitude,3))
+  
+}
+
+#load ice
+ice<-tidy_ice("data/ice2022_e.nc")
+
+#load crw lookup table
+lkp<-read.csv("data/crw_sst_spatial_lookup_updated.csv")%>%rename_with(tolower)%>%
+  mutate(lat1=round(latitude,3),
+         lon1=round(longitude,3))
+
+#join
+ice_join<-ice%>%inner_join(lkp, by=c("lat1"="lat1", "lon1"="lon1")) #fucking microsoft rounding dates in their csv... seriously WTF.
+
+#plot for qa
+ggplot()+
+  geom_point(data=ice_join%>%filter(date==as_datetime("2022-02-02 12:00:00")),
+             aes(x=lon1, y=lat1))
+ggplot()+
+  geom_point(data=ice%>%filter(date==as_datetime("2022-02-02 12:00:00")),
+             aes(x=lon1, y=lat1))
+#clear gaps in plots without rounding
+
+
+
+
+```
+
